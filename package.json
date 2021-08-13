@@ -1,0 +1,23 @@
+{
+  "name": "smog.icu",
+  "version": "0.0.0",
+  "scripts": {
+    "start": "vite",
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "preact": "^10.5.13"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.0.0",
+    "prettier": "^2.3.2",
+    "typescript": "^4.3.2",
+    "vite": "^2.4.4"
+  },
+  "prettier": {
+    "singleQuote": true,
+    "trailingComma": "all",
+    "semi": false
+  }
+}
