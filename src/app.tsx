@@ -94,10 +94,12 @@ export const App = () => {
       const data = await res.json()
       const location = data?.results?.[0]?.locations?.[0]
       const nearestIntersection = location?.nearestIntersection
-      const locationName =
+      let locationName =
         (nearestIntersection?.distanceMeters < 500 &&
           nearestIntersection?.label) ||
         location?.street
+      if (location?.adminArea5) locationName += ` - ${location.adminArea5}`
+
       setLocationName(locationName)
     })
   }, [userPosition])
