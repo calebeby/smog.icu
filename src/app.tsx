@@ -6,8 +6,10 @@ import {
   LatLong,
 } from './distance-between-coordinates'
 
-const apiKey = import.meta.env.VITE_PURPLEAIR_READ_KEY
-if (!apiKey) throw new Error('missing API key VITE_PURPLEAIR_READ_KEY')
+const purpleairApiKey = import.meta.env.VITE_PURPLEAIR_READ_KEY
+if (!purpleairApiKey) throw new Error('missing API key VITE_PURPLEAIR_READ_KEY')
+const mapquestApiKey = import.meta.env.VITE_MAPQUEST_KEY
+if (!mapquestApiKey) throw new Error('missing API key VITE_MAPQUEST_KEY')
 
 const useGeolocation = () => {
   const [position, setPosition] = useState<GeolocationPosition | null>(null)
@@ -45,6 +47,7 @@ type FieldEntry = Record<FieldName, string | number>
 export const App = () => {
   const userPosition = useGeolocation()
   const [data, setData] = useState<FieldEntry[] | null>(null)
+  const [locationName, setLocationName] = useState<string | null>(null)
 
   useEffect(() => {
     if (!userPosition) return
@@ -60,7 +63,7 @@ export const App = () => {
     fetch(
       `https://api.purpleair.com/v1/sensors?${new URLSearchParams(params)}`,
       {
-        headers: { 'X-API-Key': String(apiKey) },
+        headers: { 'X-API-Key': String(purpleairApiKey) },
       },
     ).then(async (res) => {
       const data = await res.json()
@@ -83,6 +86,22 @@ export const App = () => {
     })
   }, [userPosition, margin, distanceThresholdMeters])
 
+  useEffect(() => {
+    if (!userPosition) return
+    fetch(
+      `https://www.mapquestapi.com/geocoding/v1/reverse?key=${mapquestApiKey}&location=${userPosition.coords.latitude},${userPosition.coords.longitude}&includeNearestIntersection=true`,
+    ).then(async (res) => {
+      const data = await res.json()
+      const location = data?.results?.[0]?.locations?.[0]
+      const nearestIntersection = location?.nearestIntersection
+      const locationName =
+        (nearestIntersection?.distanceMeters < 500 &&
+          nearestIntersection?.label) ||
+        location?.street
+      setLocationName(locationName)
+    })
+  }, [userPosition])
+
   return (
     <>
       {!userPosition && <h1>No GPS location</h1>}
@@ -92,6 +111,7 @@ export const App = () => {
         <h1>{`No data found within ${distanceThresholdMeters / 1000} km`}</h1>
       ) : (
         <>
+          <h2>{locationName}</h2>
           <h1>
             {Math.round(
               AQIPM25(
