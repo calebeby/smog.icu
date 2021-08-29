@@ -11,16 +11,6 @@ if (!purpleairApiKey) throw new Error('missing API key VITE_PURPLEAIR_READ_KEY')
 const mapquestApiKey = import.meta.env.VITE_MAPQUEST_KEY
 if (!mapquestApiKey) throw new Error('missing API key VITE_MAPQUEST_KEY')
 
-const useGeolocation = () => {
-  const [position, setPosition] = useState<GeolocationPosition | null>(null)
-  useEffect(() => {
-    new Promise<GeolocationPosition>((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(resolve, reject)
-    }).then(setPosition)
-  }, [])
-  return position
-}
-
 const margin = 1
 // 10 km
 const distanceThresholdMeters = 10000
@@ -44,14 +34,59 @@ type FieldName = typeof fields[number]
 
 type FieldEntry = Record<FieldName, string | number>
 
+const localStorageKey = 'cachedLocation'
+
+interface Position {
+  name?: string
+  coords: LatLong
+}
+
 export const App = () => {
-  const userPosition = useGeolocation()
-  const [data, setData] = useState<FieldEntry[] | null>(null)
-  const [locationName, setLocationName] = useState<string | null>(null)
+  const [position, setPosition] = useState<Position | null>(null)
+  const coords = position?.coords
+  const locationName = position?.name
 
   useEffect(() => {
-    if (!userPosition) return
-    const { latitude, longitude } = userPosition.coords
+    ;(async () => {
+      const cachedPosition = localStorage.getItem(localStorageKey)
+      if (cachedPosition)
+        try {
+          const parsed: Position = JSON.parse(cachedPosition)
+          setPosition(parsed)
+        } catch {}
+
+      const permission = await navigator.permissions.query({
+        name: 'geolocation',
+      })
+      if (permission.state === 'granted') {
+        const location = await new Promise<GeolocationPosition>(
+          (resolve, reject) =>
+            navigator.geolocation.getCurrentPosition(resolve, reject),
+        )
+        const newPos: Position = {
+          coords: {
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+          },
+        }
+        setPosition((oldPos) => {
+          const isChanged =
+            newPos.coords.latitude !== oldPos?.coords.latitude ||
+            newPos.coords.longitude !== oldPos?.coords.longitude
+          if (isChanged) {
+            localStorage.setItem(localStorageKey, JSON.stringify(newPos))
+            return newPos
+          }
+          return oldPos
+        })
+      }
+    })().catch(() => {})
+  }, [])
+  const [data, setData] = useState<FieldEntry[] | null>(null)
+
+  useEffect(() => {
+    if (!coords) return
+    const { latitude, longitude } = coords
     const params = {
       fields: fieldsStr,
       nwlng: longitude - margin,
@@ -78,18 +113,19 @@ export const App = () => {
       const dataWithinRange = output.filter((point) => {
         return (
           point.confidence > 70 &&
-          distanceBetweenCoordinates(point as any, userPosition.coords) <
+          distanceBetweenCoordinates(point as any, coords) <
             distanceThresholdMeters
         )
       })
       setData(dataWithinRange)
     })
-  }, [userPosition, margin, distanceThresholdMeters])
+  }, [coords])
 
   useEffect(() => {
-    if (!userPosition) return
+    if (!coords || locationName) return
+    const { latitude, longitude } = coords
     fetch(
-      `https://www.mapquestapi.com/geocoding/v1/reverse?key=${mapquestApiKey}&location=${userPosition.coords.latitude},${userPosition.coords.longitude}&includeNearestIntersection=true`,
+      `https://www.mapquestapi.com/geocoding/v1/reverse?key=${mapquestApiKey}&location=${latitude},${longitude}&includeNearestIntersection=true`,
     ).then(async (res) => {
       const data = await res.json()
       const location = data?.results?.[0]?.locations?.[0]
@@ -100,20 +136,27 @@ export const App = () => {
         location?.street
       if (location?.adminArea5) locationName += ` - ${location.adminArea5}`
 
-      setLocationName(locationName)
+      setPosition((oldPos) => {
+        if (oldPos?.coords === coords) {
+          const newPos: Position = { ...oldPos, name: locationName }
+          localStorage.setItem(localStorageKey, JSON.stringify(newPos))
+          return newPos
+        }
+        return oldPos
+      })
     })
-  }, [userPosition])
+  }, [coords, locationName])
 
   return (
     <>
-      {!userPosition && <h1>No GPS location</h1>}
-      {!userPosition || !data ? (
+      {!coords && <h1>No GPS location</h1>}
+      {!coords || !data ? (
         <h1>Loading</h1>
       ) : data.length < 1 ? (
         <h1>{`No data found within ${distanceThresholdMeters / 1000} km`}</h1>
       ) : (
         <>
-          <h2>{locationName}</h2>
+          {locationName && <h2>{locationName}</h2>}
           <h1>
             {Math.round(
               AQIPM25(
@@ -123,7 +166,7 @@ export const App = () => {
                     longitude: entry.longitude as number,
                     value: epaCompensate(entry),
                   })),
-                  userPosition.coords,
+                  coords,
                 ),
               ) || NaN,
             )}
