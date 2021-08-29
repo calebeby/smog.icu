@@ -41,20 +41,23 @@ interface Position {
   coords: LatLong
 }
 
+const getCachedPosition = () => {
+  const cachedPosition = localStorage.getItem(localStorageKey)
+  if (cachedPosition)
+    try {
+      const parsed: Position = JSON.parse(cachedPosition)
+      return parsed
+    } catch {}
+  return null
+}
+
 export const App = () => {
-  const [position, setPosition] = useState<Position | null>(null)
+  const [position, setPosition] = useState<Position | null>(getCachedPosition)
   const coords = position?.coords
   const locationName = position?.name
 
   useEffect(() => {
     ;(async () => {
-      const cachedPosition = localStorage.getItem(localStorageKey)
-      if (cachedPosition)
-        try {
-          const parsed: Position = JSON.parse(cachedPosition)
-          setPosition(parsed)
-        } catch {}
-
       const permission = await navigator.permissions.query({
         name: 'geolocation',
       })
