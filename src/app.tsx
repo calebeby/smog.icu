@@ -17,9 +17,12 @@ const distanceThresholdMeters = 10000
 
 const selectedField = 'pm2.5_10minute'
 
+const OUTDOOR = 0
+
 const fields = [
   'name',
   'sensor_index',
+  'location_type',
   'latitude',
   'longitude',
   'confidence',
@@ -110,13 +113,13 @@ export const App = () => {
         }
         output.push(entryObj)
       }
-      const dataWithinRange = output.filter((point) => {
-        return (
+      const dataWithinRange = output.filter(
+        (point) =>
           point.confidence > 70 &&
+          point.location_type === OUTDOOR &&
           distanceBetweenCoordinates(point as any, coords) <
-            distanceThresholdMeters
-        )
-      })
+            distanceThresholdMeters,
+      )
       setData(dataWithinRange)
     })
   }, [coords])
