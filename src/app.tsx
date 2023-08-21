@@ -30,7 +30,7 @@ const fields = [
 
 const fieldsStr = fields.join(',')
 
-type FieldName = typeof fields[number]
+type FieldName = (typeof fields)[number]
 
 type FieldEntry = Record<FieldName, string | number>
 
@@ -58,46 +58,43 @@ export const App = () => {
 
   useEffect(() => {
     ;(async () => {
-      const permission = await navigator.permissions.query({
-        name: 'geolocation',
-      })
-      if (permission.state === 'granted') {
-        const location = await new Promise<GeolocationPosition>(
-          (resolve, reject) =>
-            navigator.geolocation.getCurrentPosition(resolve, reject),
-        )
-        const newPos: Position = {
-          coords: {
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-          },
-        }
-        setPosition((oldPos) => {
-          const isChanged =
-            newPos.coords.latitude !== oldPos?.coords.latitude ||
-            newPos.coords.longitude !== oldPos?.coords.longitude
-          if (isChanged) {
-            localStorage.setItem(localStorageKey, JSON.stringify(newPos))
-            return newPos
-          }
-          return oldPos
-        })
+      const location = await new Promise<GeolocationPosition>(
+        (resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject),
+      )
+      const newPos: Position = {
+        coords: {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        },
       }
-    })().catch(() => {})
+      setPosition((oldPos) => {
+        const isChanged =
+          newPos.coords.latitude !== oldPos?.coords.latitude ||
+          newPos.coords.longitude !== oldPos?.coords.longitude
+        if (isChanged) {
+          localStorage.setItem(localStorageKey, JSON.stringify(newPos))
+          return newPos
+        }
+        return oldPos
+      })
+    })().catch((err) => {
+      console.error(err)
+    })
   }, [])
   const [data, setData] = useState<FieldEntry[] | null>(null)
 
   useEffect(() => {
     if (!coords) return
     const { latitude, longitude } = coords
-    const params = {
+    const params: Record<string, string> = {
       fields: fieldsStr,
-      nwlng: longitude - margin,
-      nwlat: latitude + margin,
-      selng: longitude + margin,
-      selat: latitude - margin,
-      max_age: 20 * 60, // 20 minutes -> seconds
-    } as any as Record<string, string>
+      nwlng: String(longitude - margin),
+      nwlat: String(latitude + margin),
+      selng: String(longitude + margin),
+      selat: String(latitude - margin),
+      max_age: String(20 * 60), // 20 minutes -> seconds
+    }
     fetch(
       `https://api.purpleair.com/v1/sensors?${new URLSearchParams(params)}`,
       {
